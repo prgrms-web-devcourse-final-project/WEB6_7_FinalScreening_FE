@@ -18,8 +18,10 @@
         "name": "next"
       }
     ],
+    /* Path Mapping */
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["src/*"]
     }
   },
   "include": [
