@@ -88,3 +88,23 @@ export async function getChatMessages(
 
   return (await res.json()) as ChatMessagesResponseDto;
 }
+
+// 메시지 읽음 처리
+export async function markMessagesAsRead(
+  chatRoomId: string,
+  lastReadMessageId: number,
+): Promise<{ chatRoomId: number; lastReadMessageId: number; lastReadAt: string }> {
+  const res = await ClientApi(`/api/v1/chats/${chatRoomId}/messages/read`, {
+    method: "POST",
+    body: JSON.stringify({ lastReadMessageId }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `markMessagesAsRead failed(chatRoomId=${chatRoomId}): ${res.status} ${text}`,
+    );
+  }
+
+  return await res.json();
+}

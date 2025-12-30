@@ -83,6 +83,7 @@ export default function ChatPage({ params }: { params: { game: string } }) {
 
   const {
     isLoadingRight,
+    isSending,
     rightHeaderUser,
     rightTitle,
     rightState,
@@ -182,6 +183,7 @@ export default function ChatPage({ params }: { params: { game: string } }) {
                 state={rightState}
                 messages={rightMessages}
                 onSend={handleSend}
+                isSending={isSending}
               />
             )
           ) : (
