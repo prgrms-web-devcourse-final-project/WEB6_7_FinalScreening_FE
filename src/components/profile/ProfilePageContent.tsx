@@ -26,13 +26,8 @@ import { useMenuStore } from "@/stores/menuStore";
 import LoadingBouncy from "../common/loading/LoadingBouncy";
 import { gameAccountRefreshAll } from "@/services/game-account/data.client";
 import { RefreshCooldown } from "./RefreshCooldown";
-
-type Ban = {
-  userId: number;
-  nickname: string;
-  profileImage: string;
-  blockedAt: string;
-};
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getBanUsersList } from "@/services/ban.client";
 
 const REFRESH_COOLDOWN_MS = 2 * 60 * 1000;
 
@@ -45,10 +40,9 @@ export default function ProfilePageContent({
 }) {
   const router = useRouter();
 
-  const { setMenu } = useMenuStore();
+  const queryClient = useQueryClient();
 
-  const [isUserBlocked, setIsUserBlocked] = useState<boolean>(false);
-  const [isBlockedMsg, setIsBlockedMsg] = useState<string>("");
+  const { setMenu } = useMenuStore();
 
   const gameAccountId = gameAccountData?.gameAccountId ?? 0;
 
@@ -65,6 +59,13 @@ export default function ProfilePageContent({
   if (!profileData) return null;
 
   const { nickname, profile_image, comment } = profileData;
+
+  const { data: banList, isLoading: isBanListLoading } = useQuery({
+    queryKey: ["ban"],
+    queryFn: getBanUsersList,
+  });
+  const banListData = banList ?? [];
+  const isUserBlocked = banListData.some((ban) => ban.userId === profileData.id);
 
   const lolData =
     gameAccountData?.gameType === "LEAGUE_OF_LEGENDS" ||
@@ -89,29 +90,24 @@ export default function ProfilePageContent({
   const FlexQueue =
     RankData?.filter((r) => r.queueType === "RANKED_FLEX_SR")[0] ?? null;
 
+  const banMutation = useMutation({
+    mutationFn: async (targetUserId: number) => {
+      const res = await ClientApi(`/api/v1/users/${targetUserId}/blocks`, {
+        method: "POST",
+      });
+
+      if (!res.ok) throw new Error("차단 실패");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ban"] });
+    },
+    onError: (error) => {
+      alert(error.message);
+    },
+  });
+
   const userBanHandler = async () => {
-    const getBanRes = await ClientApi("/api/v1/users/me/blocks", {
-      method: "GET",
-      cache: "no-store",
-    });
-    const banListData: Ban[] = await getBanRes.json();
-
-    const tempIsUserBlocked = banListData.some(
-      (ban) => ban.userId === profileData.id,
-    );
-
-    if (tempIsUserBlocked) {
-      setIsBlockedMsg("이미 차단된 사용자입니다");
-      return;
-    }
-    setIsBlockedMsg("");
-    const res = await ClientApi(`/api/v1/users/${profileData.id}/blocks`, {
-      method: "POST",
-    });
-    if (res.ok) {
-      setIsBlockedMsg("차단되었습니다");
-      setIsUserBlocked(tempIsUserBlocked);
-    }
+    await banMutation.mutateAsync(profileData.id);
   };
 
   const isLoading =
@@ -184,14 +180,13 @@ export default function ProfilePageContent({
                 <span className="text-content-primary text-2xl font-semibold">
                   {nickname}
                 </span>
-                <span className="text-negative">{isBlockedMsg}</span>
                 <BoxButton
                   size="sm"
                   tone="negative"
-                  className="w-12 py-3"
-                  text="차단"
+                  className={twMerge("w-12 py-3", isUserBlocked ? "pointer-events-none" : "")}
+                  text={isUserBlocked ? "차단됨" : "차단"}
                   onClick={userBanHandler}
-                  disabled={isUserBlocked}
+                  disabled={isBanListLoading || isUserBlocked || banMutation.isPending}
                 />
               </div>
               <IntroduceBubble size="lg" content={comment} />

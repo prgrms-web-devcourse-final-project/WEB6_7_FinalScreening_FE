@@ -5,11 +5,12 @@ import { BoxButton } from "../common/button/BoxButton";
 import FindCardContainer from "../common/container/FindCardContainer";
 import IntroduceBubble from "./IntroduceBubble";
 import { twMerge } from "tailwind-merge";
-import { useState } from "react";
 import ClientApi from "@/lib/clientApi";
 import { UserProfile } from "@/types/profile";
 import { ReviewDistribution } from "@/types/review";
 import ReviewPercent from "../review/ReviewPercent";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getBanUsersList } from "@/services/ban.client";
 
 interface MiniProfileProps extends React.ComponentPropsWithoutRef<"div"> {
   userData: UserProfile;
@@ -22,18 +23,34 @@ export default function MiniProfile({
   reviewDistributionData,
   className,
 }: MiniProfileProps) {
-  const [isUserBlocked, setIsUserBlocked] = useState<boolean>(false);
+  const queryClient = useQueryClient();
+
+  const { data: banList, isLoading: isBanListLoading } = useQuery({
+    queryKey: ["ban"],
+    queryFn: getBanUsersList,
+  });
+  const banListData = banList ?? [];
+  const isUserBlocked = banListData.some((ban) => ban.userId === userData.id);
+
+  const banMutation = useMutation({
+    mutationFn: async (targetUserId: number) => {
+      const res = await ClientApi(`/api/v1/users/${targetUserId}/blocks`, {
+        method: "POST",
+      });
+
+      if (!res.ok) throw new Error("차단 실패");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ban"] });
+    },
+    onError: (error) => {
+      alert(error.message);
+    },
+  });
 
   const userBanHandler = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-
-    const res = await ClientApi(`/api/v1/users/${userData.id}/blocks`, {
-      method: "POST",
-    });
-
-    if (res.ok) {
-      setIsUserBlocked(true);
-    }
+    await banMutation.mutateAsync(userData.id);
   };
 
   if (!userData) return null;
@@ -50,6 +67,8 @@ export default function MiniProfile({
               tone="negative"
               text={isUserBlocked ? "차단됨" : "차단하기"}
               onClick={userBanHandler}
+              className={isUserBlocked ? "pointer-events-none" : ""}
+              disabled={isBanListLoading || banMutation.isPending}
             />
           </div>
           <IntroduceBubble

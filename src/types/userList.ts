@@ -18,3 +18,10 @@ export type SearchUser = {
         linked: false;
       };
 };
+
+export type BanUser = {
+  userId: number;
+  nickname: string;
+  profileImage: string | null;
+  blockedAt: string
+}
